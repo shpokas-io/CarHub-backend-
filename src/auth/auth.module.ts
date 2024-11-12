@@ -8,11 +8,11 @@ import { SupabaseService } from '../supabase/supabase.service';
 @Module({
   imports: [
     JwtModule.register({
-      secret: process.env.JWT_SECRET,
+      secret: process.env.JWT_SECRET || 'defaultSecret',
       signOptions: { expiresIn: '1h' },
     }),
   ],
-  controllers: [AuthController],
   providers: [AuthService, JwtStrategy, SupabaseService],
+  controllers: [AuthController],
 })
 export class AuthModule {}
