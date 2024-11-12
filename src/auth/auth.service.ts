@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
@@ -13,57 +17,91 @@ export class AuthService {
   ) {}
 
   async register(registerDto: RegisterDto) {
-    const { email, password } = registerDto;
-    const supabase = this.supabaseService.getClient();
+    try {
+      const { email, password } = registerDto;
+      const hashedPassword = await this.hashPassword(password);
+      const user = await this.createUser(email, hashedPassword);
+      return user;
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Error while registering user',
+        error.message,
+      );
+    }
+  }
 
-    const hashedPassword = await hashPassword(password);
-    console.log('Hashed Password:', hashedPassword);
+  async login(loginDto: LoginDto) {
+    const { email, password } = loginDto;
+    const user = await this.findUserByEmail(email);
+
+    if (!user || !(await this.comparePasswords(password, user.password))) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const token = this.generateJwtToken(user.id, user.email);
+    return { access_token: token };
+  }
+
+  private async hashPassword(password: string): Promise<string> {
+    try {
+      return await hashPassword(password);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Error while hashing password',
+        error.message,
+      );
+    }
+  }
+
+  private async createUser(email: string, hashedPassword: string) {
+    const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('users')
       .insert([{ email, password: hashedPassword }])
       .single();
 
-    if (error) throw new Error(error.message);
-    console.log('Error during user creation:', error);
-    console.log('User created:', data);
+    if (error) {
+      throw new InternalServerErrorException(
+        'Error while creating user in database',
+        error.message,
+      );
+    }
     return data;
   }
-  async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
+
+  private async findUserByEmail(email: string) {
     const supabase = this.supabaseService.getClient();
-
-    console.log('Attempting to login with email:', email);
-
     const { data, error } = await supabase
       .from('users')
       .select('*')
       .eq('email', email)
       .single();
 
-    console.log('Supabase Query Data:', data);
-    console.log('Supabase Query Error:', error);
-
     if (error) {
-      console.log('Error or no user found:', error);
+      throw new InternalServerErrorException(
+        'Error while fetching user from databse',
+        error.message,
+      );
     }
+    return data;
+  }
 
-    console.log('User data retrieved:', data);
-
-    if (error || !data) {
-      console.log('Error or no user found', email);
-      throw new UnauthorizedException('Invalid credentials');
+  private async comparePasswords(
+    plainPassword: string,
+    hashedPassword: string,
+  ): Promise<boolean> {
+    try {
+      return await comparePasswords(plainPassword, hashedPassword);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        'Error while comparing passwords',
+        error.message,
+      );
     }
+  }
 
-    const isPasswordMatching = await comparePasswords(password, data.password);
-    console.log('Password comparison result:', isPasswordMatching);
-
-    if (!isPasswordMatching) {
-      console.log('Password mismatch');
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const payload = { sub: data.id, email: data.email };
-    const token = this.jwtService.sign(payload);
-    return { access_token: token };
+  private generateJwtToken(userId: string, email: string): string {
+    const payload = { sub: userId, email: email };
+    return this.jwtService.sign(payload);
   }
 }
