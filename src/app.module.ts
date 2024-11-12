@@ -3,8 +3,18 @@ import { AuthModule } from './auth/auth.module';
 import { UsersModule } from './users/users.module';
 import { cacheConfig } from './config/cache.config';
 import { SupabaseModule } from './supabase/supabase.module';
+import { JwtModule } from '@nestjs/jwt';
 
 @Module({
-  imports: [AuthModule, UsersModule, cacheConfig, SupabaseModule],
+  imports: [
+    AuthModule,
+    UsersModule,
+    cacheConfig,
+    SupabaseModule,
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || 'defaultSecret',
+      signOptions: { expiresIn: '1h' },
+    }),
+  ],
 })
 export class AppModule {}
