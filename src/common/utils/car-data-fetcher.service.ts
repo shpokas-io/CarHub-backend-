@@ -14,46 +14,48 @@ export class CarDataFetcherService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async fetchCarData(_make: string) {
+  async fetchCarData() {
     const carApiKey = this.configService.get<string>('CAR_API_KEY');
     const unsplashAccessKey = this.configService.get<string>(
       'UNSPLASH_ACCESS_KEY',
     );
 
     try {
-      const carMake = this.getRandomCarMake(); // Get random car make
-      const carResponse = await axios.get(this.carApiUrl, {
-        headers: { 'X-Api-Key': carApiKey },
-        params: { make: carMake },
-      });
-
-      // Get a random selection of 10 cars with different makes and years
-      const carDetails = this.selectRandomCars(carResponse.data, 10);
-
       const carsData = await Promise.all(
-        carDetails.map(async (car) => {
+        Array.from({ length: 10 }).map(async () => {
+          const carMake = this.getRandomCarMake();
+          const carResponse = await axios.get(this.carApiUrl, {
+            headers: { 'X-Api-Key': carApiKey },
+            params: { make: carMake },
+          });
+
+          const carDetails = this.selectRandomCar(carResponse.data);
           const year = this.getRandomYear();
-          const power = this.calculatePower(car.cylinders, car.displacement);
+          const power = this.calculatePower(
+            carDetails.cylinders,
+            carDetails.displacement,
+          );
 
           const carImageUrl = await this.fetchCarImage(
-            car.make,
-            car.model,
+            carDetails.make,
+            carDetails.model,
             year,
             unsplashAccessKey,
           );
 
           return {
-            make: car.make,
-            model: car.model,
-            year: year,
+            make: carDetails.make,
+            model: carDetails.model,
+            year,
             engine:
-              car.engine ||
-              (car.displacement ? `${car.displacement}L` : 'unknown'),
+              carDetails.engine ||
+              (carDetails.displacement
+                ? `${carDetails.displacement}L`
+                : 'unknown'),
             color: 'Default Color',
-            power: power,
-            cylinder: car.cylinders || null,
-            drive: car.drive || 'unknown',
+            power,
+            cylinder: carDetails.cylinders || null,
+            drive: carDetails.drive || 'unknown',
             car_image: carImageUrl,
           };
         }),
@@ -86,13 +88,13 @@ export class CarDataFetcherService {
 
   private calculatePower(cylinders: number, displacement: number): number {
     return cylinders && displacement
-      ? Math.round(cylinders * displacement * 20)
+      ? Math.round(cylinders * displacement * 25) // Updated multiplier for more variety
       : 100;
   }
 
-  private selectRandomCars(carList: any[], count: number) {
-    const shuffled = [...carList].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
+  private selectRandomCar(carList: any[]): any {
+    const randomIndex = Math.floor(Math.random() * carList.length);
+    return carList[randomIndex];
   }
 
   private async fetchCarImage(
@@ -102,23 +104,19 @@ export class CarDataFetcherService {
     accessKey: string,
   ) {
     try {
-      const query = `${make} ${model} ${year} car exterior`;
+      const query = `${make} ${model} ${year} car exterior view`;
       const response = await axios.get(this.unsplashApiUrl, {
         params: {
           query,
           client_id: accessKey,
-          per_page: 5,
+          per_page: 1,
           orientation: 'landscape',
         },
       });
 
-      const selectedImage =
-        response.data.results.find((img) =>
-          img.alt_description?.toLowerCase().includes('exterior'),
-        ) || response.data.results[0];
-
       return (
-        selectedImage?.urls.regular || 'https://via.placeholder.com/400x200'
+        response.data.results[0]?.urls.regular ||
+        'https://via.placeholder.com/400x200'
       );
     } catch (error) {
       this.logger.warn(

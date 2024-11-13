@@ -16,10 +16,10 @@ export class CarsService {
     private readonly carDataFetcherService: CarDataFetcherService,
   ) {}
 
-  async populateCars(make: string) {
-    this.logger.log(`Starting to populate cars for make: ${make}`);
+  async populateCars() {
+    this.logger.log(`Starting to populate cars`);
     try {
-      const carsData = await this.carDataFetcherService.fetchCarData(make);
+      const carsData = await this.carDataFetcherService.fetchCarData();
       this.logger.log(
         `Inserting ${carsData.length} cars into the Supabase database`,
       );
@@ -48,7 +48,6 @@ export class CarsService {
     }
   }
 
-  // Add getAllCars method
   async getAllCars() {
     try {
       const { data, error } = await this.supabaseService
@@ -71,7 +70,6 @@ export class CarsService {
     }
   }
 
-  // Add createCar method
   async createCar(createCarDto: CreateCarDto) {
     try {
       const {
