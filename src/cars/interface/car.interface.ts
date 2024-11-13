@@ -4,5 +4,8 @@ export interface Car {
   model: string;
   year: number;
   color?: string;
-  mileage: string;
+  engine: string;
+  transmission: string;
+  drive: string;
+  cylinder: string;
 }
