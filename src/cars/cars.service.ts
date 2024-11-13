@@ -3,104 +3,29 @@ import {
   InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
-import axios from 'axios';
 import { SupabaseService } from 'src/supabase/supabase.service';
+import { CarDataFetcherService } from '../common/utils/car-data-fetcher.service';
 import { CreateCarDto } from './dto/create-car.dto';
-import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class CarsService {
   private readonly logger = new Logger(CarsService.name);
-  private readonly carApiUrl = 'https://api.api-ninjas.com/v1/cars';
-  private readonly unsplashApiUrl = 'https://api.unsplash.com/search/photos';
 
   constructor(
     private readonly supabaseService: SupabaseService,
-    private readonly configService: ConfigService,
+    private readonly carDataFetcherService: CarDataFetcherService,
   ) {}
 
   async populateCars(make: string) {
     this.logger.log(`Starting to populate cars for make: ${make}`);
     try {
+      const carsData = await this.carDataFetcherService.fetchCarData(make);
       this.logger.log(
-        `Reaching out to main car API at ${this.carApiUrl} with make: ${make}`,
-      );
-      const carApiKey = this.configService.get<string>('CAR_API_KEY');
-      this.logger.log(
-        `Reaching out to main car API at ${this.carApiUrl} with make: ${make}`,
-      );
-      const carDetailsResponse = await axios.get(this.carApiUrl, {
-        headers: { 'X-Api-Key': carApiKey },
-        params: { make },
-      });
-
-      this.logger.log(`Received response from car API for make: ${make}`);
-      this.logger.debug(
-        `Car API response data: ${JSON.stringify(carDetailsResponse.data)}`,
+        `Inserting ${carsData.length} cars into the Supabase database`,
       );
 
-      const carDetails = carDetailsResponse.data.slice(0, 1);
-
-      const carsToInsert = await Promise.all(
-        carDetails.map(async (car) => {
-          let carImageUrl = '';
-          try {
-            const unsplashAccessKey = this.configService.get<string>(
-              'UNSPLASH_ACCESS_KEY',
-            );
-            this.logger.log(
-              `Fetching image for model: ${car.model}, year: ${car.year} from Unsplash`,
-            );
-            const query = `${car.make} ${car.model} ${car.year} full car`;
-            const imageResponse = await axios.get(this.unsplashApiUrl, {
-              params: {
-                query,
-                client_id: unsplashAccessKey,
-                per_page: 1,
-                orientation: 'landscape',
-              },
-            });
-
-            if (
-              imageResponse.data.results &&
-              imageResponse.data.results.length > 0
-            ) {
-              carImageUrl = imageResponse.data.results[0].urls.small;
-            } else {
-              this.logger.warn(`No image found for ${car.model} ${car.year}`);
-              carImageUrl = 'https://via.placeholder.com/150';
-            }
-          } catch (error) {
-            this.logger.warn(
-              `Unsplash API error for ${car.model} ${car.year}: ${error.message}`,
-            );
-          }
-
-          const carData = {
-            make: car.make,
-            model: car.model,
-            year: car.year,
-            engine:
-              car.engine || car.displacement
-                ? `${car.displacement}L`
-                : 'unknown',
-            color: 'Default Color',
-            power: car.horsepower || car.cylinders * 25 || 0,
-            cylinder: car.cylinders || null,
-            drive: car.drive || 'unknown',
-            car_image: carImageUrl,
-          };
-          this.logger.debug(
-            `Prepared car data for insertion: ${JSON.stringify(carData)}`,
-          );
-          return carData;
-        }),
-      );
-      this.logger.log(
-        `Inserting ${carsToInsert.length} cars into the Supabase database`,
-      );
       const supabase = this.supabaseService.getClient();
-      const { error } = await supabase.from('cars').insert(carsToInsert);
+      const { error } = await supabase.from('cars').insert(carsData);
 
       if (error) {
         this.logger.error(
@@ -112,9 +37,9 @@ export class CarsService {
       }
 
       this.logger.log(
-        `Successfully inserted ${carsToInsert.length} cars into the database`,
+        `Successfully inserted ${carsData.length} cars into the database`,
       );
-      return carsToInsert;
+      return carsData;
     } catch (error) {
       this.logger.error(`Failed to populate cars: ${error.message}`);
       throw new InternalServerErrorException(
@@ -123,6 +48,7 @@ export class CarsService {
     }
   }
 
+  // Add getAllCars method
   async getAllCars() {
     try {
       const { data, error } = await this.supabaseService
@@ -145,6 +71,7 @@ export class CarsService {
     }
   }
 
+  // Add createCar method
   async createCar(createCarDto: CreateCarDto) {
     try {
       const {
