@@ -6,21 +6,38 @@ import {
 import axios from 'axios';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { CreateCarDto } from './dto/create-car.dto';
+import { ConfigService } from '@nestjs/config';
 
 @Injectable()
 export class CarsService {
   private readonly logger = new Logger(CarsService.name);
   private readonly carApiUrl = 'https://api.api-ninjas.com/v1/cars';
-  private readonly carImageApiUrl = 'https://carimageryapi.com/api/v1/carimage';
-  private readonly carApiKey = 'cSDlnzA/mHmTGZrsV3+i2A==XdomjFgHwjSGstNi';
-  constructor(private readonly supabaseService: SupabaseService) {}
+  private readonly unsplashApiUrl = 'https://api.unsplash.com/search/photos';
+
+  constructor(
+    private readonly supabaseService: SupabaseService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async populateCars(make: string) {
+    this.logger.log(`Starting to populate cars for make: ${make}`);
     try {
-      const carDetailsResponse = await axios.get(this.carApiKey, {
-        headers: { 'X-Api-Key': this.carApiKey },
+      this.logger.log(
+        `Reaching out to main car API at ${this.carApiUrl} with make: ${make}`,
+      );
+      const carApiKey = this.configService.get<string>('CAR_API_KEY');
+      this.logger.log(
+        `Reaching out to main car API at ${this.carApiUrl} with make: ${make}`,
+      );
+      const carDetailsResponse = await axios.get(this.carApiUrl, {
+        headers: { 'X-Api-Key': carApiKey },
         params: { make },
       });
+
+      this.logger.log(`Received response from car API for make: ${make}`);
+      this.logger.debug(
+        `Car API response data: ${JSON.stringify(carDetailsResponse.data)}`,
+      );
 
       const carDetails = carDetailsResponse.data;
 
@@ -28,17 +45,37 @@ export class CarsService {
         carDetails.map(async (car) => {
           let carImageUrl = '';
           try {
-            const imageResponse = await axios.get(this.carImageApiUrl, {
-              params: { model: car.model, year: car.year },
+            const unsplashAccessKey = this.configService.get<string>(
+              'UNSPLASH_ACCESS_KEY',
+            );
+            this.logger.log(
+              `Fetching image for model: ${car.model}, year: ${car.year} from Unsplash`,
+            );
+
+            const imageResponse = await axios.get(this.unsplashApiUrl, {
+              params: {
+                query: `${car.model} ${car.year}`,
+                client_id: unsplashAccessKey,
+                per_page: 1,
+              },
             });
-            carImageUrl = imageResponse.data.image_url || '';
+
+            if (
+              imageResponse.data.results &&
+              imageResponse.data.results.length > 0
+            ) {
+              carImageUrl = imageResponse.data.results[0].urls.small;
+            } else {
+              this.logger.warn(`No image found for ${car.model} ${car.year}`);
+              carImageUrl = 'https://via.placeholder.com/150';
+            }
           } catch (error) {
             this.logger.warn(
-              `Image not found for ${car.model} ${car.year}: ${error.message}`,
+              `Unsplash API error for ${car.model} ${car.year}: ${error.message}`,
             );
           }
 
-          return {
+          const carData = {
             make: car.make,
             model: car.model,
             year: car.year,
@@ -47,13 +84,22 @@ export class CarsService {
             power: car.horsepower || 0,
             car_image: carImageUrl,
           };
+          this.logger.debug(
+            `Prepared car data for insertion: ${JSON.stringify(carData)}`,
+          );
+          return carData;
         }),
       );
-
+      this.logger.log(
+        `Inserting ${carsToInsert.length} cars into the Supabase database`,
+      );
       const supabase = this.supabaseService.getClient();
       const { error } = await supabase.from('cars').insert(carsToInsert);
 
       if (error) {
+        this.logger.error(
+          `Error inserting cars into the database: ${error.message}`,
+        );
         throw new InternalServerErrorException(
           `Error inserting cars: ${error.message}`,
         );

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Body, UseGuards, Query } from '@nestjs/common';
 import { CarsService } from './cars.service';
 import { CreateCarDto } from './dto/create-car.dto';
 import { JwtAuthGuard } from 'src/auth/guards/jwt-auth.guard';
@@ -10,6 +10,12 @@ export class CarsController {
   @Get()
   async getAllCars() {
     return this.carsService.getAllCars();
+  }
+
+  @Post('populate')
+  @UseGuards(JwtAuthGuard)
+  async populateCars(@Query('make') make: string) {
+    return this.carsService.populateCars(make);
   }
 
   @Post()
