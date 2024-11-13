@@ -51,12 +51,13 @@ export class CarsService {
             this.logger.log(
               `Fetching image for model: ${car.model}, year: ${car.year} from Unsplash`,
             );
-            const query = `${car.make} ${car.model} ${car.year} car`;
+            const query = `${car.make} ${car.model} ${car.year} full car`;
             const imageResponse = await axios.get(this.unsplashApiUrl, {
               params: {
                 query,
                 client_id: unsplashAccessKey,
                 per_page: 1,
+                orientation: 'landscape',
               },
             });
 
@@ -84,7 +85,7 @@ export class CarsService {
                 ? `${car.displacement}L`
                 : 'unknown',
             color: 'Default Color',
-            power: car.horsepower || 0,
+            power: car.horsepower || car.cylinders * 25 || 0,
             car_image: carImageUrl,
           };
           this.logger.debug(
