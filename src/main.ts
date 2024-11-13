@@ -1,11 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
-import * as dotenv from 'dotenv';
+import { ValidationPipe, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as packageInfo from '../package.json';
 
-dotenv.config();
+const version = packageInfo.version;
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  const configService = app.get(ConfigService);
+  const logger = new Logger('Bootstrap');
 
   app.useGlobalPipes(
     new ValidationPipe({
@@ -15,10 +19,20 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors();
+  app.enableCors({
+    origin: configService.get<string>('ALLOWED_ORIGIN') || '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+    credentials: true,
+  });
 
-  const port = process.env.PORT || 3000;
+  app.setGlobalPrefix('api/v1');
+
+  app.enableShutdownHooks();
+
+  const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);
-  console.log(`Server is running on port: ${port}`);
+  logger.log(
+    `Server is running on http://localhost:${port}, API Version: ${version}`,
+  );
 }
 bootstrap();
