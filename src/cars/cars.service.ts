@@ -39,7 +39,7 @@ export class CarsService {
         `Car API response data: ${JSON.stringify(carDetailsResponse.data)}`,
       );
 
-      const carDetails = carDetailsResponse.data;
+      const carDetails = carDetailsResponse.data.slice(0, 1);
 
       const carsToInsert = await Promise.all(
         carDetails.map(async (car) => {
@@ -51,10 +51,10 @@ export class CarsService {
             this.logger.log(
               `Fetching image for model: ${car.model}, year: ${car.year} from Unsplash`,
             );
-
+            const query = `${car.make} ${car.model} ${car.year} car`;
             const imageResponse = await axios.get(this.unsplashApiUrl, {
               params: {
-                query: `${car.model} ${car.year}`,
+                query,
                 client_id: unsplashAccessKey,
                 per_page: 1,
               },
@@ -79,7 +79,10 @@ export class CarsService {
             make: car.make,
             model: car.model,
             year: car.year,
-            engine: car.engine || 'unknown',
+            engine:
+              car.engine || car.displacement
+                ? `${car.displacement}L`
+                : 'unknown',
             color: 'Default Color',
             power: car.horsepower || 0,
             car_image: carImageUrl,
