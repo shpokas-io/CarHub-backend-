@@ -4,12 +4,16 @@ import { AuthController } from './auth.controller';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { SupabaseService } from '../supabase/supabase.service';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { jwtConfig } from '../config/jwt.config';
 
 @Module({
   imports: [
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || 'defaultSecret',
-      signOptions: { expiresIn: '1h' },
+    ConfigModule,
+    JwtModule.registerAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: jwtConfig,
     }),
   ],
   providers: [AuthService, JwtStrategy, SupabaseService],
