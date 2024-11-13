@@ -10,15 +10,11 @@ import { ConfigService } from '@nestjs/config';
 export class CarDataFetcherService {
   private readonly logger = new Logger(CarDataFetcherService.name);
   private readonly carApiUrl = 'https://api.api-ninjas.com/v1/cars';
-  private readonly unsplashApiUrl = 'https://api.unsplash.com/search/photos';
 
   constructor(private readonly configService: ConfigService) {}
 
   async fetchCarData() {
     const carApiKey = this.configService.get<string>('CAR_API_KEY');
-    const unsplashAccessKey = this.configService.get<string>(
-      'UNSPLASH_ACCESS_KEY',
-    );
 
     try {
       const carsData = await Promise.all(
@@ -36,12 +32,8 @@ export class CarDataFetcherService {
             carDetails.displacement,
           );
 
-          const carImageUrl = await this.fetchCarImage(
-            carDetails.make,
-            carDetails.model,
-            year,
-            unsplashAccessKey,
-          );
+          // Removing the image fetching part
+          const carImageUrl = 'https://via.placeholder.com/400x200'; // Placeholder for now
 
           return {
             make: carDetails.make,
@@ -88,41 +80,12 @@ export class CarDataFetcherService {
 
   private calculatePower(cylinders: number, displacement: number): number {
     return cylinders && displacement
-      ? Math.round(cylinders * displacement * 25) // Updated multiplier for more variety
+      ? Math.round(cylinders * displacement * 25)
       : 100;
   }
 
   private selectRandomCar(carList: any[]): any {
     const randomIndex = Math.floor(Math.random() * carList.length);
     return carList[randomIndex];
-  }
-
-  private async fetchCarImage(
-    make: string,
-    model: string,
-    year: number,
-    accessKey: string,
-  ) {
-    try {
-      const query = `${make} ${model} ${year} car exterior view`;
-      const response = await axios.get(this.unsplashApiUrl, {
-        params: {
-          query,
-          client_id: accessKey,
-          per_page: 1,
-          orientation: 'landscape',
-        },
-      });
-
-      return (
-        response.data.results[0]?.urls.regular ||
-        'https://via.placeholder.com/400x200'
-      );
-    } catch (error) {
-      this.logger.warn(
-        `Unsplash API error for ${make} ${model} ${year}: ${error.message}`,
-      );
-      return 'https://via.placeholder.com/400x200';
-    }
   }
 }
