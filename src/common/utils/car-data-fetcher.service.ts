@@ -14,37 +14,44 @@ export class CarDataFetcherService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async fetchCarData(make: string) {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async fetchCarData(_make: string) {
     const carApiKey = this.configService.get<string>('CAR_API_KEY');
     const unsplashAccessKey = this.configService.get<string>(
       'UNSPLASH_ACCESS_KEY',
     );
 
     try {
+      const carMake = this.getRandomCarMake(); // Get random car make
       const carResponse = await axios.get(this.carApiUrl, {
         headers: { 'X-Api-Key': carApiKey },
-        params: { make },
+        params: { make: carMake },
       });
-      const carDetails = carResponse.data.slice(0, 3); // Car limit
+
+      // Get a random selection of 10 cars with different makes and years
+      const carDetails = this.selectRandomCars(carResponse.data, 10);
 
       const carsData = await Promise.all(
         carDetails.map(async (car) => {
+          const year = this.getRandomYear();
+          const power = this.calculatePower(car.cylinders, car.displacement);
+
           const carImageUrl = await this.fetchCarImage(
             car.make,
             car.model,
-            car.year,
+            year,
             unsplashAccessKey,
           );
 
           return {
             make: car.make,
             model: car.model,
-            year: car.year,
+            year: year,
             engine:
               car.engine ||
               (car.displacement ? `${car.displacement}L` : 'unknown'),
             color: 'Default Color',
-            power: car.horsepower || car.cylinders * 25 || 0,
+            power: power,
             cylinder: car.cylinders || null,
             drive: car.drive || 'unknown',
             car_image: carImageUrl,
@@ -59,6 +66,35 @@ export class CarDataFetcherService {
     }
   }
 
+  private getRandomCarMake(): string {
+    const carMakes = [
+      'Toyota',
+      'Ford',
+      'Honda',
+      'Chevrolet',
+      'Nissan',
+      'BMW',
+      'Mercedes',
+      'Audi',
+    ];
+    return carMakes[Math.floor(Math.random() * carMakes.length)];
+  }
+
+  private getRandomYear(): number {
+    return Math.floor(Math.random() * (2022 - 1980 + 1)) + 1980;
+  }
+
+  private calculatePower(cylinders: number, displacement: number): number {
+    return cylinders && displacement
+      ? Math.round(cylinders * displacement * 20)
+      : 100;
+  }
+
+  private selectRandomCars(carList: any[], count: number) {
+    const shuffled = [...carList].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  }
+
   private async fetchCarImage(
     make: string,
     model: string,
@@ -66,12 +102,12 @@ export class CarDataFetcherService {
     accessKey: string,
   ) {
     try {
-      const query = `${make} ${model} ${year} exterior car`;
+      const query = `${make} ${model} ${year} car exterior`;
       const response = await axios.get(this.unsplashApiUrl, {
         params: {
           query,
           client_id: accessKey,
-          per_page: 3,
+          per_page: 5,
           orientation: 'landscape',
         },
       });
