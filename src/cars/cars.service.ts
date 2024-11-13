@@ -86,6 +86,8 @@ export class CarsService {
                 : 'unknown',
             color: 'Default Color',
             power: car.horsepower || car.cylinders * 25 || 0,
+            cylinder: car.cylinders || null,
+            drive: car.drive || 'unknown',
             car_image: carImageUrl,
           };
           this.logger.debug(
