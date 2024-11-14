@@ -34,5 +34,7 @@ async function bootstrap() {
   logger.log(
     `Server is running on http://localhost:${port}, API Version: ${version}`,
   );
+  logger.log(`Allowed origin: ${configService.get<string>('ALLOWED_ORIGIN')}`);
+  logger.log(`JWT Secret: ${configService.get<string>('JWT_SECRET')}`);
 }
 bootstrap();

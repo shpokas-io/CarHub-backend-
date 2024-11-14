@@ -32,7 +32,7 @@ export class AuthService {
 
   async login(loginDto: LoginDto) {
     const { username, password } = loginDto;
-    const user = await this.findUserByEmail(username);
+    const user = await this.findUserByUsername(username);
 
     if (!user || !(await this.comparePasswords(password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
@@ -69,7 +69,7 @@ export class AuthService {
     return data;
   }
 
-  private async findUserByEmail(username: string) {
+  private async findUserByUsername(username: string) {
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('users')
