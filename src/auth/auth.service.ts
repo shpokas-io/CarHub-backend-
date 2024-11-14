@@ -18,9 +18,9 @@ export class AuthService {
 
   async register(registerDto: RegisterDto) {
     try {
-      const { email, password } = registerDto;
+      const { username, password } = registerDto;
       const hashedPassword = await this.hashPassword(password);
-      const user = await this.createUser(email, hashedPassword);
+      const user = await this.createUser(username, hashedPassword);
       return user;
     } catch (error) {
       throw new InternalServerErrorException(
@@ -31,14 +31,14 @@ export class AuthService {
   }
 
   async login(loginDto: LoginDto) {
-    const { email, password } = loginDto;
-    const user = await this.findUserByEmail(email);
+    const { username, password } = loginDto;
+    const user = await this.findUserByEmail(username);
 
     if (!user || !(await this.comparePasswords(password, user.password))) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const token = this.generateJwtToken(user.id, user.email);
+    const token = this.generateJwtToken(user.id, user.username);
     return { access_token: token };
   }
 
@@ -53,11 +53,11 @@ export class AuthService {
     }
   }
 
-  private async createUser(email: string, hashedPassword: string) {
+  private async createUser(username: string, hashedPassword: string) {
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('users')
-      .insert([{ email, password: hashedPassword }])
+      .insert([{ username, password: hashedPassword }])
       .single();
 
     if (error) {
@@ -69,12 +69,12 @@ export class AuthService {
     return data;
   }
 
-  private async findUserByEmail(email: string) {
+  private async findUserByEmail(username: string) {
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('username', username)
       .single();
 
     if (error) {
@@ -100,8 +100,8 @@ export class AuthService {
     }
   }
 
-  private generateJwtToken(userId: string, email: string): string {
-    const payload = { sub: userId, email: email };
+  private generateJwtToken(userId: string, username: string): string {
+    const payload = { sub: userId, username: username };
     return this.jwtService.sign(payload);
   }
 }

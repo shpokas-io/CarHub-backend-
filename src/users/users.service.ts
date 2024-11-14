@@ -10,12 +10,12 @@ import { hashPassword } from 'src/common/utils/hash.util';
 export class UsersService {
   constructor(private readonly supabaseService: SupabaseService) {}
 
-  async findUserByEmail(email: string) {
+  async findUserByUsername(username: string) {
     const supabase = this.supabaseService.getClient();
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('email', email)
+      .eq('username', username)
       .single();
 
     if (error) {
@@ -23,18 +23,18 @@ export class UsersService {
     }
     return data;
   }
-  async createUser(email: string, password: string) {
+  async createUser(username: string, password: string) {
     const supabase = this.supabaseService.getClient();
 
-    const existingUser = await this.findUserByEmail(email);
+    const existingUser = await this.findUserByUsername(username);
     if (existingUser) {
-      throw new BadRequestException('EMail is already registered');
+      throw new BadRequestException('Username is already registered');
     }
     const hashedPassword = await hashPassword(password);
 
     const { data, error } = await supabase
       .from('users')
-      .insert([{ email, password: hashedPassword }])
+      .insert([{ username, password: hashedPassword }])
       .single();
 
     if (error) {
