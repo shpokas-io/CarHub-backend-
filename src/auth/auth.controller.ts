@@ -7,6 +7,7 @@ import {
   Request,
   UnauthorizedException,
   InternalServerErrorException,
+  Logger,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -15,6 +16,8 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
@@ -25,14 +28,16 @@ export class AuthController {
   @Post('login')
   async login(@Body() loginDto: LoginDto) {
     try {
+      this.logger.log(`Login attempt for username: ${loginDto.username}`);
       return await this.authService.login(loginDto);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
+        this.logger.warn(`Login unauthorized: ${error.message}`);
         throw error;
       }
+      this.logger.error(`Login failed: ${error.message}`, error.stack);
       throw new InternalServerErrorException('An unexpected error occurred');
     }
-    return this.authService.login(loginDto);
   }
 
   @UseGuards(JwtAuthGuard)

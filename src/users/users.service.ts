@@ -18,18 +18,37 @@ export class UsersService {
       .eq('username', username)
       .single();
 
-    if (error) {
+    if (error && error.details?.includes('no rows')) {
       throw new NotFoundException('User not found');
+    } else if (error) {
+      throw new BadRequestException('Database query failed');
     }
+
     return data;
   }
+
+  async isUsernameTaken(username: string): Promise<boolean> {
+    const supabase = this.supabaseService.getClient();
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('username', username);
+
+    if (error) {
+      throw new BadRequestException('Error checking username availability');
+    }
+
+    return data.length > 0;
+  }
+
   async createUser(username: string, password: string) {
     const supabase = this.supabaseService.getClient();
 
-    const existingUser = await this.findUserByUsername(username);
-    if (existingUser) {
+    const isTaken = await this.isUsernameTaken(username);
+    if (isTaken) {
       throw new BadRequestException('Username is already registered');
     }
+
     const hashedPassword = await hashPassword(password);
 
     const { data, error } = await supabase
@@ -40,6 +59,7 @@ export class UsersService {
     if (error) {
       throw new BadRequestException('Error creating user');
     }
+
     return data;
   }
 

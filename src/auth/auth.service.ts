@@ -1,122 +1,74 @@
 import {
   Injectable,
   InternalServerErrorException,
+  BadRequestException,
   NotFoundException,
   UnauthorizedException,
+  Logger,
 } from '@nestjs/common';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { UsersService } from '../users/users.service';
 import { hashPassword, comparePasswords } from 'src/common/utils/hash.util';
-import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly supabaseService: SupabaseService,
     private readonly jwtService: JwtService,
+    private readonly usersService: UsersService, // Inject UsersService
   ) {}
 
   async register(registerDto: RegisterDto) {
     try {
       const { username, password } = registerDto;
-      const hashedPassword = await this.hashPassword(password);
-      const user = await this.createUser(username, hashedPassword);
+
+      const isUsernameTaken = await this.usersService.isUsernameTaken(username);
+      if (isUsernameTaken) {
+        throw new BadRequestException('Username is already registered');
+      }
+
+      const hashedPassword = await hashPassword(password);
+      const user = await this.usersService.createUser(username, hashedPassword);
+
       return user;
     } catch (error) {
-      throw new InternalServerErrorException(
-        'Error while registering user',
-        error.message,
-      );
+      this.logger.error(`Registration error: ${error.message}`);
+      throw error;
     }
   }
-
-  private readonly logger = new Logger(AuthService.name);
 
   async login(loginDto: LoginDto) {
     const { username, password } = loginDto;
 
     try {
-      const user = await this.findUserByUsername(username);
+      this.logger.debug(`Attempting login for username: ${username}`);
+      const user = await this.usersService.findUserByUsername(username);
 
-      if (!user) {
-        this.logger.warn(`Login failed: Username not found (${username})`);
-        throw new UnauthorizedException('Username not found');
-      }
-
-      const isPasswordValid = await this.comparePasswords(
-        password,
-        user.password,
-      );
+      this.logger.debug(`User found: ${JSON.stringify(user)}`);
+      const isPasswordValid = await comparePasswords(password, user.password);
 
       if (!isPasswordValid) {
-        this.logger.warn(`Login failed: Incorrect password (${username})`);
+        this.logger.warn(
+          `Login failed: Incorrect password for username: ${username}`,
+        );
         throw new UnauthorizedException('Incorrect password');
       }
 
       const token = this.generateJwtToken(user.id, user.username);
       return { access_token: token };
     } catch (error) {
-      this.logger.error(`Login error for username: ${username}`);
-      throw error;
-    }
-  }
+      if (error instanceof NotFoundException) {
+        this.logger.warn(`Login failed: ${error.message}`);
+        throw new UnauthorizedException(error.message);
+      }
 
-  private async hashPassword(password: string): Promise<string> {
-    try {
-      return await hashPassword(password);
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Error while hashing password',
-        error.message,
-      );
-    }
-  }
-
-  private async createUser(username: string, hashedPassword: string) {
-    const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase
-      .from('users')
-      .insert([{ username, password: hashedPassword }])
-      .single();
-
-    if (error) {
-      throw new InternalServerErrorException(
-        'Error while creating user in database',
-        error.message,
-      );
-    }
-    return data;
-  }
-
-  private async findUserByUsername(username: string) {
-    const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('username', username)
-      .single();
-
-    if (error && error.details.includes('no rows')) {
-      throw new NotFoundException('Username not found');
-    } else if (error) {
-      throw new InternalServerErrorException('Database query failed');
-    }
-    return data;
-  }
-
-  private async comparePasswords(
-    plainPassword: string,
-    hashedPassword: string,
-  ): Promise<boolean> {
-    try {
-      return await comparePasswords(plainPassword, hashedPassword);
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Error while comparing passwords',
-        error.message,
-      );
+      this.logger.error(`Login error for username: ${username}`, error.stack);
+      throw new InternalServerErrorException('An unexpected error occurred');
     }
   }
 
