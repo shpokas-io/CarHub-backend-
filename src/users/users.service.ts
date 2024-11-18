@@ -1,10 +1,9 @@
 import {
   Injectable,
-  BadRequestException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { SupabaseService } from 'src/supabase/supabase.service';
-import { hashPassword } from 'src/common/utils/hash.util';
 
 @Injectable()
 export class UsersService {
@@ -18,7 +17,9 @@ export class UsersService {
       .eq('username', username)
       .single();
 
-    if (error && error.details?.includes('no rows')) {
+    console.error('Supabase error:', JSON.stringify(error, null, 2));
+
+    if (error?.code === 'PGRST116' && error.details?.includes('0 rows')) {
       throw new NotFoundException('User not found');
     } else if (error) {
       throw new BadRequestException('Database query failed');
@@ -49,41 +50,15 @@ export class UsersService {
       throw new BadRequestException('Username is already registered');
     }
 
-    const hashedPassword = await hashPassword(password);
-
     const { data, error } = await supabase
       .from('users')
-      .insert([{ username, password: hashedPassword }])
+      .insert([{ username, password }])
       .single();
 
     if (error) {
       throw new BadRequestException('Error creating user');
     }
 
-    return data;
-  }
-
-  async getAllUsers() {
-    const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase.from('users').select('*');
-
-    if (error) {
-      throw new BadRequestException('Error retrieving users');
-    }
-    return data;
-  }
-
-  async findUserById(id: string) {
-    const supabase = this.supabaseService.getClient();
-    const { data, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (error) {
-      throw new NotFoundException('User not found');
-    }
     return data;
   }
 }

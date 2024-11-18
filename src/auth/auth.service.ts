@@ -1,12 +1,10 @@
 import {
   Injectable,
-  InternalServerErrorException,
-  BadRequestException,
-  NotFoundException,
   UnauthorizedException,
+  InternalServerErrorException,
   Logger,
+  NotFoundException,
 } from '@nestjs/common';
-import { SupabaseService } from 'src/supabase/supabase.service';
 import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -18,9 +16,8 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
-    private readonly supabaseService: SupabaseService,
     private readonly jwtService: JwtService,
-    private readonly usersService: UsersService, // Inject UsersService
+    private readonly usersService: UsersService,
   ) {}
 
   async register(registerDto: RegisterDto) {
@@ -29,7 +26,7 @@ export class AuthService {
 
       const isUsernameTaken = await this.usersService.isUsernameTaken(username);
       if (isUsernameTaken) {
-        throw new BadRequestException('Username is already registered');
+        throw new UnauthorizedException('Username is already registered');
       }
 
       const hashedPassword = await hashPassword(password);
@@ -49,31 +46,35 @@ export class AuthService {
       this.logger.debug(`Attempting login for username: ${username}`);
       const user = await this.usersService.findUserByUsername(username);
 
-      this.logger.debug(`User found: ${JSON.stringify(user)}`);
       const isPasswordValid = await comparePasswords(password, user.password);
-
       if (!isPasswordValid) {
-        this.logger.warn(
-          `Login failed: Incorrect password for username: ${username}`,
-        );
-        throw new UnauthorizedException('Incorrect password');
+        this.logger.warn(`Invalid credentials for username: ${username}`);
+        throw new UnauthorizedException('Invalid credentials');
       }
 
       const token = this.generateJwtToken(user.id, user.username);
       return { access_token: token };
     } catch (error) {
       if (error instanceof NotFoundException) {
-        this.logger.warn(`Login failed: ${error.message}`);
-        throw new UnauthorizedException(error.message);
+        this.logger.warn(`Invalid login attempt: User not found`);
+        throw new UnauthorizedException('Invalid credentials');
       }
 
-      this.logger.error(`Login error for username: ${username}`, error.stack);
+      if (error instanceof UnauthorizedException) {
+        this.logger.warn(`Invalid login attempt: ${error.message}`);
+        throw error;
+      }
+
+      this.logger.error(
+        `Unexpected login error for username: ${username}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('An unexpected error occurred');
     }
   }
 
   private generateJwtToken(userId: string, username: string): string {
-    const payload = { sub: userId, username: username };
+    const payload = { sub: userId, username };
     return this.jwtService.sign(payload);
   }
 }

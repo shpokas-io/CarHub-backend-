@@ -32,10 +32,14 @@ export class AuthController {
       return await this.authService.login(loginDto);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
-        this.logger.warn(`Login unauthorized: ${error.message}`);
+        this.logger.warn(`Unauthorized login attempt: ${error.message}`);
         throw error;
       }
-      this.logger.error(`Login failed: ${error.message}`, error.stack);
+
+      this.logger.error(
+        `Unexpected error during login: ${error.message}`,
+        error.stack,
+      );
       throw new InternalServerErrorException('An unexpected error occurred');
     }
   }
