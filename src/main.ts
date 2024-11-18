@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import * as packageInfo from '../package.json';
 
 const version = packageInfo.version;
@@ -26,8 +27,9 @@ async function bootstrap() {
   });
 
   app.setGlobalPrefix('api/v1');
-
   app.enableShutdownHooks();
+
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   const port = configService.get<number>('PORT') || 3000;
   await app.listen(port);

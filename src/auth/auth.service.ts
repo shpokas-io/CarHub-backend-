@@ -1,6 +1,7 @@
 import {
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { SupabaseService } from 'src/supabase/supabase.service';
@@ -8,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { hashPassword, comparePasswords } from 'src/common/utils/hash.util';
+import { Logger } from '@nestjs/common';
 
 @Injectable()
 export class AuthService {
@@ -30,16 +32,35 @@ export class AuthService {
     }
   }
 
+  private readonly logger = new Logger(AuthService.name);
+
   async login(loginDto: LoginDto) {
     const { username, password } = loginDto;
-    const user = await this.findUserByUsername(username);
 
-    if (!user || !(await this.comparePasswords(password, user.password))) {
-      throw new UnauthorizedException('Invalid credentials');
+    try {
+      const user = await this.findUserByUsername(username);
+
+      if (!user) {
+        this.logger.warn(`Login failed: Username not found (${username})`);
+        throw new UnauthorizedException('Username not found');
+      }
+
+      const isPasswordValid = await this.comparePasswords(
+        password,
+        user.password,
+      );
+
+      if (!isPasswordValid) {
+        this.logger.warn(`Login failed: Incorrect password (${username})`);
+        throw new UnauthorizedException('Incorrect password');
+      }
+
+      const token = this.generateJwtToken(user.id, user.username);
+      return { access_token: token };
+    } catch (error) {
+      this.logger.error(`Login error for username: ${username}`);
+      throw error;
     }
-
-    const token = this.generateJwtToken(user.id, user.username);
-    return { access_token: token };
   }
 
   private async hashPassword(password: string): Promise<string> {
@@ -77,11 +98,10 @@ export class AuthService {
       .eq('username', username)
       .single();
 
-    if (error) {
-      throw new InternalServerErrorException(
-        'Error while fetching user from databse',
-        error.message,
-      );
+    if (error && error.details.includes('no rows')) {
+      throw new NotFoundException('Username not found');
+    } else if (error) {
+      throw new InternalServerErrorException('Database query failed');
     }
     return data;
   }
