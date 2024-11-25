@@ -5,7 +5,6 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { CarDataFetcherService } from '../common/utils/car-data-fetcher.service';
-import { CreateCarDto } from './dto/create-car.dto';
 
 @Injectable()
 export class CarsService {
@@ -16,92 +15,43 @@ export class CarsService {
     private readonly carDataFetcherService: CarDataFetcherService,
   ) {}
 
+  async getAllCars() {
+    try {
+      const supabase = this.supabaseService.getClient();
+      const { data: cars, error } = await supabase.from('cars').select('*');
+
+      if (error) {
+        this.logger.error(`Error fetching cars: ${error.message}`);
+        throw new InternalServerErrorException(
+          'Error fetching cars from database',
+        );
+      }
+
+      return cars;
+    } catch (error) {
+      this.logger.error(`Unexpected error fetching cars: ${error.message}`);
+      throw new InternalServerErrorException('Failed to fetch cars');
+    }
+  }
+
   async populateCars() {
-    this.logger.log(`Starting to populate cars`);
     try {
       const carsData = await this.carDataFetcherService.fetchCarData();
-      this.logger.log(
-        `Inserting ${carsData.length} cars into the Supabase database`,
-      );
-
       const supabase = this.supabaseService.getClient();
+
       const { error } = await supabase.from('cars').insert(carsData);
 
       if (error) {
-        this.logger.error(
-          `Error inserting cars into the database: ${error.message}`,
-        );
+        this.logger.error(`Error populating cars: ${error.message}`);
         throw new InternalServerErrorException(
-          `Error inserting cars: ${error.message}`,
+          'Error populating cars database',
         );
       }
 
-      this.logger.log(
-        `Successfully inserted ${carsData.length} cars into the database`,
-      );
       return carsData;
     } catch (error) {
       this.logger.error(`Failed to populate cars: ${error.message}`);
-      throw new InternalServerErrorException(
-        `Failed to populate cars: ${error.message}`,
-      );
-    }
-  }
-
-  async getAllCars() {
-    try {
-      const { data, error } = await this.supabaseService
-        .getClient()
-        .from('cars')
-        .select('*');
-
-      if (error) {
-        throw new InternalServerErrorException(
-          'Error fetching cars from the database',
-          error.message,
-        );
-      }
-      return data;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Error fetching cars',
-        error.message,
-      );
-    }
-  }
-
-  async createCar(createCarDto: CreateCarDto) {
-    try {
-      const {
-        make,
-        model,
-        year,
-        color,
-        engine,
-        transmission,
-        drive,
-        cylinder,
-      } = createCarDto;
-      const { data, error } = await this.supabaseService
-        .getClient()
-        .from('cars')
-        .insert([
-          { make, model, year, color, engine, transmission, drive, cylinder },
-        ])
-        .single();
-
-      if (error) {
-        throw new InternalServerErrorException(
-          'Error creating car in the database',
-          error.message,
-        );
-      }
-      return data;
-    } catch (error) {
-      throw new InternalServerErrorException(
-        'Error creating car',
-        error.message,
-      );
+      throw new InternalServerErrorException('Failed to populate cars');
     }
   }
 }
