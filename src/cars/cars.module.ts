@@ -1,9 +1,9 @@
 import { Module } from '@nestjs/common';
-import { CarsService } from './cars.service';
 import { ConfigModule } from '@nestjs/config';
-import { CarsController } from './cars.controller';
-import { SupabaseService } from 'src/supabase/supabase.service';
 import { AuthModule } from 'src/auth/auth.module';
+import { CarsController } from './cars.controller';
+import { CarsService } from './cars.service';
+import { SupabaseService } from 'src/supabase/supabase.service';
 import { CarDataFetcherService } from 'src/common/utils/car-data-fetcher.service';
 
 @Module({

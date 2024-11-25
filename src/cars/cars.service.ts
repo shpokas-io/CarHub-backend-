@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { SupabaseService } from 'src/supabase/supabase.service';
 import { CarDataFetcherService } from '../common/utils/car-data-fetcher.service';
+import { CreateCarDto } from './dto/create-car.dto';
 
 @Injectable()
 export class CarsService {
@@ -15,26 +16,25 @@ export class CarsService {
     private readonly carDataFetcherService: CarDataFetcherService,
   ) {}
 
-  async getAllCars() {
+  async getAllCars(): Promise<CreateCarDto[]> {
     try {
       const supabase = this.supabaseService.getClient();
       const { data: cars, error } = await supabase.from('cars').select('*');
 
       if (error) {
-        this.logger.error(`Error fetching cars: ${error.message}`);
-        throw new InternalServerErrorException(
+        this.logAndThrowError(
           'Error fetching cars from database',
+          error.message,
         );
       }
 
       return cars;
     } catch (error) {
-      this.logger.error(`Unexpected error fetching cars: ${error.message}`);
-      throw new InternalServerErrorException('Failed to fetch cars');
+      this.logAndThrowError('Unexpected error fetching cars', error.message);
     }
   }
 
-  async populateCars() {
+  async populateCars(): Promise<CreateCarDto[]> {
     try {
       const carsData = await this.carDataFetcherService.fetchCarData();
       const supabase = this.supabaseService.getClient();
@@ -42,16 +42,17 @@ export class CarsService {
       const { error } = await supabase.from('cars').insert(carsData);
 
       if (error) {
-        this.logger.error(`Error populating cars: ${error.message}`);
-        throw new InternalServerErrorException(
-          'Error populating cars database',
-        );
+        this.logAndThrowError('Error populating cars database', error.message);
       }
 
       return carsData;
     } catch (error) {
-      this.logger.error(`Failed to populate cars: ${error.message}`);
-      throw new InternalServerErrorException('Failed to populate cars');
+      this.logAndThrowError('Failed to populate cars', error.message);
     }
+  }
+
+  private logAndThrowError(logMessage: string, errorMessage: string): never {
+    this.logger.error(`${logMessage}: ${errorMessage}`);
+    throw new InternalServerErrorException(logMessage);
   }
 }
